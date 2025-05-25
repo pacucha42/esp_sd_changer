@@ -44,7 +44,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.2.4
+    version: 5.4.0
 direct_dependencies:
 - espressif/mcp23017
 - idf

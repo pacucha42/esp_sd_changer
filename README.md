@@ -4,7 +4,7 @@ This project implements a **multi-slot SD card changer** interface using ESP32, 
 
 ## Features
 
-- Support for multiple SD card slots (up to 8)
+- Support for multiple SD cards (up to 8)
 - Software-controlled SD card selection via I2C GPIO expander (MCP23017)
 - Detection and power control of SD cards
 - Integration with ESP-IDF and ESP32 SDMMC host
@@ -18,12 +18,12 @@ This project implements a **multi-slot SD card changer** interface using ESP32, 
 
 | Signal     | PORT A   | PORT B |
 |------------|----------|--------|
-| SD CLK     | GPIO6    |GPIOxx     |
-| SD CMD     | GPIO7    |GPIOxx     |
-| SD D0      | GPIO5    |GPIOxx     |
-| SD D1      | GPIO4    |GPIOxx     |
-| SD D2      | GPIO15   |GPIOxx     |
-| SD D3      | GPIO16   |GPIOxx     |
+| SD CLK     | GPIO6    |GPIO42     |
+| SD CMD     | GPIO7    |GPIO41     |
+| SD D0      | GPIO5    |GPIO2     |
+| SD D1      | GPIO4    |GPIO1     |
+| SD D2      | GPIO15   |GPIO39     |
+| SD D3      | GPIO16   |GPIO40     |
 | I2C SDA    | GPIO1    |
 | I2C SCL    | GPIO2    |
 
@@ -34,7 +34,6 @@ This project implements a **multi-slot SD card changer** interface using ESP32, 
 ### Main Data Structures
 
 - `sdchngr_handle_t`: Tracks selected slot, detected/powered cards, and handles to MCP23017 and I2C.
-- `sdchngr_port_config_t`: Contains GPIO pin definitions for SDMMC and I2C.
 
 ## Build Instructions
 

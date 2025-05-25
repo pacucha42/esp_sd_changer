@@ -98,13 +98,21 @@ void app_main(void)
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
 
-    // port is initalized in default mmc slot config
-    //sd_changer_init_port(&changer, &slot_config);
+    sdchngr_dev_t device = SDCHNGR_DEFAULT();
+    sdchngr_handle_t changer = (sdchngr_handle_t)&device;
+    sdchngr_init(changer);
 
-    for (size_t i = 0; i < 2; i++)
+    for (size_t i = 0; i < 8; i++)
     {
-        ESP_LOGI(TAG, "[SLOT %d]", i + 1);
-        // ret = sd_changer_select_slot(&changer, i + 1);
+        ESP_LOGI(TAG, "[SLOT %d]", i);
+        ret = sdchngr_set_selected(changer, 0, &slot_config);
+        if (ret != ESP_OK)
+        {
+            if (ret == ESP_ERR_NOT_FOUND)
+                ESP_LOGW(TAG, "[SLOT %d] Card not inserted!", i);
+            else
+                break;
+        }
 
         ESP_LOGI(TAG, "Mounting filesystem");
         ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);

@@ -9,48 +9,46 @@
 #include "i2c_bus.h"
 
 
-#define SD_SLOT_COUNT 2
-#define SD_PORT_COUNT 1
+#define SD_SLOT_COUNT 8
+#define SD_PORT_COUNT 2
 
-#define SD_PORTA_CLK GPIO_NUM_6
-#define SD_PORTA_CMD GPIO_NUM_7
-#define SD_PORTA_D0 GPIO_NUM_5
-#define SD_PORTA_D1 GPIO_NUM_4
-#define SD_PORTA_D2 GPIO_NUM_15
-#define SD_PORTA_D3 GPIO_NUM_16
 #define SD_PORTA_SDA GPIO_NUM_1
 #define SD_PORTA_SCL GPIO_NUM_2
-#define SD_PORTA_BITMASK (1ULL << SD_PORTA_CLK) | (1ULL << SD_PORTA_CMD) |                           \
-                             (1ULL << SD_PORTA_D0) | (1ULL << SD_PORTA_D1) | (1ULL << SD_PORTA_D2) | \
-                             (1ULL << SD_PORTA_D3) | (1ULL << SD_PORTA_S1) | (1ULL << SD_PORTA_S2)
+
 #define SD_PORTA_INIT {     \
-    .clk = SD_PORTA_CLK,    \
-    .cmd = SD_PORTA_CMD,    \
-    .d0 = SD_PORTA_D0,      \
-    .d1 = SD_PORTA_D1,      \
-    .d2 = SD_PORTA_D2,      \
-    .d3 = SD_PORTA_D3,      \
+    .clk = GPIO_NUM_6,    \
+    .cmd = GPIO_NUM_7,    \
+    .d0 = GPIO_NUM_5,      \
+    .d1 = GPIO_NUM_4,      \
+    .d2 = GPIO_NUM_15,      \
+    .d3 = GPIO_NUM_16,      \
     .cd = SDMMC_SLOT_NO_CD, \
     .wp = SDMMC_SLOT_NO_WP, \
     .width = 4,             \
     .flags = 0,             \
 }
-// #define SD_PORTB_CLK -1
-// #define SD_PORTB_CMD -1
-// #define SD_PORTB_D1 -1
-// #define SD_PORTB_D2 -1
-// #define SD_PORTB_D3 -1
-// #define SD_PORTB_D4 -1
 
-/* #define SDMMC_SLOT_CONFIG_DEFAULT() {\
-//     .clk = SD_PORTA_CLK, \
-//     .cmd = SD_PORTA_CMD, \
-//     .d0 = SD_PORTA_D0, \
-//     .d1 = SD_PORTA_D1, \
-//     .d2 = SD_PORTA_D2, \
-//     .d3 = SD_PORTA_D3, \
-// }*/
-
+#define SD_PORTB_INIT {     \
+    .clk = GPIO_NUM_42,    \
+    .cmd = GPIO_NUM_41,    \
+    .d0 = GPIO_NUM_2,      \
+    .d1 = GPIO_NUM_1,      \
+    .d2 = GPIO_NUM_39,      \
+    .d3 = GPIO_NUM_40,      \
+    .cd = SDMMC_SLOT_NO_CD, \
+    .wp = SDMMC_SLOT_NO_WP, \
+    .width = 4,             \
+    .flags = 0,             \
+}
+#define SDCHNGR_DEFAULT() { \
+    .selectedSlot = 0, \
+    .detectedCards = 0, \
+    .poweredSlots = 0, \
+    .portConfigs = {SD_PORTA_INIT, SD_PORTB_INIT}, \
+    .mcps = {NULL, NULL}, \
+    .curentMcp = NULL, \
+    .i2c = NULL, \
+}
 
 #ifdef __cplusplus
 extern "C"
@@ -67,16 +65,18 @@ extern "C"
     } sdchngr_port_config_t;
 
     /// @brief SD Changer handle variables struct
-    typedef struct sdchngr_handle_s
+    typedef struct sdchngr_dev_s
     {
         uint8_t selectedSlot;
         uint8_t detectedCards;
-        uint8_t poweredCards;
+        uint8_t poweredSlots;
         sdmmc_slot_config_t portConfigs[2];
-        sdmmc_host_t sdmmc;
-        mcp23017_handle_t mcp;
+        mcp23017_handle_t mcps[2];
+        mcp23017_handle_t* curentMcp;
         i2c_bus_handle_t i2c;
-    } sdchngr_handle_t;
+    } sdchngr_dev_t;
+
+    typedef sdchngr_dev_t* sdchngr_handle_t;
 
     /**
      * @brief Initialize SD Changer handle
@@ -85,19 +85,21 @@ extern "C"
      *      - ESP_OK on success
      *
      */
-    esp_err_t sdchngr_init_default(sdchngr_handle_t *handle);
+    esp_err_t sdchngr_init(sdchngr_handle_t handle);
 
     /**
      * @brief Select SD card to be connected to the sdmmc host
      *
      * SD must be detected by handle to be selected
-     * @param handle resulting configuration
-     * @param slot SD card slot [1-8], 0 for none selected
+     * @param handle [IN] sdchanger config struct
+     * @param slot [IN] SD card slot [1-8], 0 for none selected
+     * @param slot_config [OUT] sdmmc slot config
      * @return
      *      - ESP_OK on success
      *      - ESP_ERR_NOT_FOUND if SD card is not detected
+     *      - ESP_ERR_INVALID_ARG if slot is not supported
      */
-    esp_err_t sdchngr_set_selected(sdchngr_handle_t *handle, int slot);
+    esp_err_t sdchngr_set_selected(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config);
 
     /**
      * @brief Turn SD card on/off
@@ -105,12 +107,12 @@ extern "C"
      *
      * @param handle resulting configuration
      * @param slot SD card slot [1-8]
-     * @param power 0-OFF 1-ON
+     * @param power false-OFF true-ON
      * @return
      *      - ESP_OK on success
      *      - ESP_ERR_NOT_FOUND if SD card is not detected
      */
-    esp_err_t sdchngr_set_power(sdchngr_handle_t *handle, int slot, int power);
+    esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, bool power);
 
     /**
      * @brief Get number of selected slot
@@ -118,7 +120,7 @@ extern "C"
      * @param handle configuration
      * @return [1-8] selected slot, 0 for none
      */
-    uint8_t sdchngr_get_selected(sdchngr_handle_t *handle);
+    uint8_t sdchngr_get_selected(sdchngr_handle_t handle);
 
     /**
      * @brief Get bitmask of detected cards
@@ -129,7 +131,7 @@ extern "C"
      * @return
      *      - ESP_OK on success
      */
-    esp_err_t sdchngr_get_detected(sdchngr_handle_t *handle, uint8_t *nDetected, uint8_t *slots);
+    esp_err_t sdchngr_get_detected(sdchngr_handle_t handle, uint8_t *nDetected, uint8_t *slots);
 
     /**
      * @brief Get bitmask of powered cards
@@ -140,7 +142,7 @@ extern "C"
      * @return
      *      - ESP_OK on success
      */
-    esp_err_t sdchngr_get_powered(sdchngr_handle_t *handle, uint8_t *nPowered, uint8_t *slots);
+    esp_err_t sdchngr_get_powered(sdchngr_handle_t handle, uint8_t *nPowered, uint8_t *slots);
 
     /**
      * @brief
@@ -149,7 +151,7 @@ extern "C"
      * @param slot sd card slot
      * @return true if slot is selected
      */
-    bool sdchngr_is_selected(sdchngr_handle_t *handle, int slot);
+    bool sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot);
 
     /**
      * @brief
@@ -158,7 +160,7 @@ extern "C"
      * @param slot sd card slot
      * @return true if card is powered
      */
-    bool sdchngr_is_powered(sdchngr_handle_t *handle, int slot);
+    bool sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot);
 
     /**
      * @brief
@@ -167,7 +169,10 @@ extern "C"
      * @param slot sd card slot
      * @return true if card is detected
      */
-    bool sdchngr_is_detected(sdchngr_handle_t *handle, int slot);
+    bool sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot);
+
+    esp_err_t sdchngr_set_port(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config);
+    esp_err_t sdchngr_set_mcp(sdchngr_handle_t handle, uint8_t slot);
 
 #ifdef __cplusplus
 }
