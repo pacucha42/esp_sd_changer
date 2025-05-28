@@ -12,16 +12,16 @@
 #define SD_SLOT_COUNT 8
 #define SD_PORT_COUNT 2
 
-#define SD_PORTA_SDA GPIO_NUM_1
-#define SD_PORTA_SCL GPIO_NUM_2
+#define SD_I2C_SCL GPIO_NUM_12
+#define SD_I2C_SDA GPIO_NUM_13
 
 #define SD_PORTA_INIT {     \
     .clk = GPIO_NUM_6,    \
     .cmd = GPIO_NUM_7,    \
     .d0 = GPIO_NUM_5,      \
     .d1 = GPIO_NUM_4,      \
-    .d2 = GPIO_NUM_15,      \
-    .d3 = GPIO_NUM_16,      \
+    .d2 = GPIO_NUM_16,      \
+    .d3 = GPIO_NUM_15,      \
     .cd = SDMMC_SLOT_NO_CD, \
     .wp = SDMMC_SLOT_NO_WP, \
     .width = 4,             \
@@ -106,7 +106,7 @@ extern "C"
      * SD must be detected by handle to be powered
      *
      * @param handle resulting configuration
-     * @param slot SD card slot [1-8]
+     * @param slot SD card slot [0-7]
      * @param power false-OFF true-ON
      * @return
      *      - ESP_OK on success

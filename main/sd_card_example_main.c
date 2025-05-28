@@ -93,6 +93,7 @@ void app_main(void)
     // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 40MHz for SDMMC)
     // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
 
     // This initializes the slot without card detect (CD) and write protect (WP) signals.
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
@@ -101,17 +102,22 @@ void app_main(void)
     sdchngr_dev_t device = SDCHNGR_DEFAULT();
     sdchngr_handle_t changer = (sdchngr_handle_t)&device;
     sdchngr_init(changer);
+    uint8_t nDetected = 0;
+    uint8_t detected = 0;
+    sdchngr_get_detected(changer, &nDetected, &detected);
+    ESP_LOGI(TAG, "Detected num %d mask %02x", nDetected, detected);
 
     for (size_t i = 0; i < 8; i++)
     {
         ESP_LOGI(TAG, "[SLOT %d]", i);
-        ret = sdchngr_set_selected(changer, 0, &slot_config);
+        ret = sdchngr_set_power(changer, i, true);
+        ret = sdchngr_set_selected(changer, i, &slot_config);
         if (ret != ESP_OK)
         {
             if (ret == ESP_ERR_NOT_FOUND)
                 ESP_LOGW(TAG, "[SLOT %d] Card not inserted!", i);
-            else
-                break;
+
+            continue;
         }
 
         ESP_LOGI(TAG, "Mounting filesystem");
@@ -130,7 +136,7 @@ void app_main(void)
                               "Make sure SD card lines have pull-up resistors in place.",
                          esp_err_to_name(ret));
             }
-            return;
+            continue;
         }
         ESP_LOGI(TAG, "Filesystem mounted");
 
@@ -146,7 +152,7 @@ void app_main(void)
         ret = s_example_write_file(file_hello, data);
         if (ret != ESP_OK)
         {
-            return;
+            continue;
         }
 
         const char *file_foo = MOUNT_POINT "/foo.txt";
@@ -163,13 +169,13 @@ void app_main(void)
         if (rename(file_hello, file_foo) != 0)
         {
             ESP_LOGE(TAG, "Rename failed");
-            return;
+            continue;
         }
 
         ret = s_example_read_file(file_foo);
         if (ret != ESP_OK)
         {
-            return;
+            continue;
         }
 
         // Format FATFS
@@ -198,14 +204,14 @@ void app_main(void)
         ret = s_example_write_file(file_nihao, data);
         if (ret != ESP_OK)
         {
-            return;
+            continue;
         }
 
         // Open file for reading
         ret = s_example_read_file(file_nihao);
         if (ret != ESP_OK)
         {
-            return;
+            continue;;
         }
 
         // All done, unmount partition and disable SDMMC peripheral
