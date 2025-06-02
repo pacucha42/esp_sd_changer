@@ -107,12 +107,12 @@ extern "C"
      *
      * @param handle resulting configuration
      * @param slot SD card slot [0-7]
-     * @param power false-OFF true-ON
+     * @param power 0-OFF 1-ON
      * @return
      *      - ESP_OK on success
      *      - ESP_ERR_NOT_FOUND if SD card is not detected
      */
-    esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, bool power);
+    esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, uint8_t power);
 
     /**
      * @brief Get number of selected slot
@@ -149,27 +149,27 @@ extern "C"
      *
      * @param handle configuration
      * @param slot sd card slot
-     * @return true if slot is selected
+     * @return 1 if slot is selected
      */
-    bool sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot);
+    uint8_t sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot);
 
     /**
      * @brief
      *
      * @param handle configuration
      * @param slot sd card slot
-     * @return true if card is powered
+     * @return 1 if card is powered
      */
-    bool sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot);
+    uint8_t sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot);
 
     /**
      * @brief
      *
      * @param handle configuration
      * @param slot sd card slot
-     * @return true if card is detected
+     * @return 1 if card is detected
      */
-    bool sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot);
+    uint8_t sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot);
 
     esp_err_t sdchngr_set_port(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config);
     esp_err_t sdchngr_set_mcp(sdchngr_handle_t handle, uint8_t slot);

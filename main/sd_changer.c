@@ -78,14 +78,14 @@ esp_err_t sdchngr_set_selected(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot
     if (!sdchngr_is_detected(handle, slot))
         return ESP_ERR_NOT_FOUND;
 
-    sdchngr_set_port(handle, slot, slot_config);
-    sdchngr_set_mcp(handle, slot);
+    sdchngr_set_port(handle, slot, slot_config);    // Get correct slot config
+    sdchngr_set_mcp(handle, slot);                  // Set correct currentMcp
     uint8_t gpio = slot;
     if (gpio >= 4)
         gpio -= 4;
-
+    // Outputs are on GPIOB
     uint8_t current_gpio = mcp23017_read_io(handle->curentMcp, MCP23017_GPIOB);
-    current_gpio |= 0b10101010; // Apply mask
+    current_gpio |= 0b10101010; // Apply mask - odd bits are bus select
     // Clear bit, stride 2, offset 1, 0 is select active
     bitclear(current_gpio, ((slot % 4) * 2 + 1));
     mcp23017_write_io(handle->curentMcp, current_gpio, MCP23017_GPIOB);
@@ -95,7 +95,7 @@ esp_err_t sdchngr_set_selected(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot
     return ESP_OK;
 }
 
-esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, bool power)
+esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, uint8_t power)
 {
     SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     if (slot >= SD_SLOT_COUNT)
@@ -103,16 +103,15 @@ esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, bool power)
     if (!sdchngr_is_detected(handle, slot))
         return ESP_ERR_NOT_FOUND;
 
-    sdchngr_set_mcp(handle, slot);
-    uint8_t orig_slot = slot;
-
+    sdchngr_set_mcp(handle, slot);  // Set corrent currentMcp
+    // Outputs are on GPIOB
     uint8_t current_gpio = mcp23017_read_io(handle->curentMcp, MCP23017_GPIOB);
     // Set/clear bit, stride 2, offset 0, 0 is power active
-    power == true ? bitclear(current_gpio, ((slot % 4) * 2)) : bitset(current_gpio, ((slot % 4) * 2));
+    power >= true ? bitclear(current_gpio, ((slot % 4) * 2)) : bitset(current_gpio, ((slot % 4) * 2));
     mcp23017_write_io(handle->curentMcp, current_gpio, MCP23017_GPIOB);
-    power == true ? bitset(handle->poweredSlots, slot) : bitclear(handle->poweredSlots, slot);
+    power >=1 ? bitset(handle->poweredSlots, slot) : bitclear(handle->poweredSlots, slot);
 
-    ESP_LOGD(TAG, "Power [%d] slot %d\n", power, orig_slot);
+    ESP_LOGD(TAG, "Power [%d] slot %d\n", power, slot);
     return ESP_OK;
 }
 
@@ -127,17 +126,17 @@ esp_err_t sdchngr_get_detected(sdchngr_handle_t handle, uint8_t *nDetected, uint
 
     uint8_t porta = mcp23017_read_io(handle->mcps[0], MCP23017_GPIOA);
     uint8_t portb = mcp23017_read_io(handle->mcps[1], MCP23017_GPIOA);
-    porta = porta & 0x0F; // Only bits 0–3
-    portb = portb & 0x0F;
+    // porta = porta & 0x0F; // Only bits 0–3
+    // portb = portb & 0x0F;
     *slots = 0;
+    // Combine 4 bits from both ports so the result is
+    // 0b[BBBBAAAA]
     *slots = (portb << 4) | porta;
-    *slots = ~(*slots); // Negate so that 1 is detected
+    *slots = ~(*slots); // Negate so that 1 represents detected card
     for (int i = 0; i < 8; ++i)
     {
         if (*slots & (1 << i))
-        {
             (*nDetected)++;
-        }
     }
     ESP_LOGD(TAG, "Detected: " BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(*slots));
     return ESP_OK;
@@ -151,33 +150,31 @@ esp_err_t sdchngr_get_powered(sdchngr_handle_t handle, uint8_t *nPowered, uint8_
     for (int i = 0; i < 8; ++i)
     {
         if (*slots & (1 << i))
-        {
             (*nPowered)++;
-        }
     }
     return ESP_OK;
 }
 
-bool sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot)
+uint8_t sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot)
 {
     SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     return slot == handle->selectedSlot;
 }
 
-bool sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot)
+uint8_t sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot)
 {
     SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     ESP_LOGD(TAG, "Powered: " BYTE_TO_BINARY_PATTERN " slot %d", BYTE_TO_BINARY(handle->poweredSlots), slot);
     return bitcheck(handle->poweredSlots, slot);
 }
 
-bool sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot)
+uint8_t sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot)
 {
     SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     uint8_t nDetected = 0;
     uint8_t detected = 0;
     sdchngr_get_detected(handle, &nDetected, &detected);
-    ESP_LOGI(TAG, "Slot %d detected [%d]", slot, bitcheck(detected, slot) > 0);
+    ESP_LOGD(TAG, "Slot %d detected [%d]", slot, bitcheck(detected, slot) > 0);
     return bitcheck(detected, slot) > 0;
 }
 
@@ -187,7 +184,7 @@ esp_err_t sdchngr_set_port(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_con
 
     if (slot > SD_SLOT_COUNT)
         return ESP_ERR_INVALID_ARG;
-    // TODO:
+        
     if (slot < 4)
         *config = handle->portConfigs[0];
     else
