@@ -1,3 +1,6 @@
+| Supported Targets | ESP32 | ESP32-P4 | ESP32-S3 |
+| ----------------- | ----- | -------- | -------- |
+
 # SD Card Changer for ESP32
 
 This project implements a **multi-slot SD card changer** interface using the ESP32-S3 dev kit, allowing dynamic software-based switching between up to 8 SD cards without physically reconnecting them. It utilizes an I2C-controlled GPIO expander (MCP23017) for slot selection, power control, and card detection and SN74CB3Q3245 for physical bus switching.

@@ -1,5 +1,5 @@
-idf_component_register(SRCS "sd_changer.c" "sd_card_example_main.c"
-                    INCLUDE_DIRS ".")
+idf_component_register(SRCS "../../src/sd_changer.c" "sd_card_example_main.c"
+                    INCLUDE_DIRS "../../main")
 
 
 if(NOT CONFIG_SOC_SDMMC_HOST_SUPPORTED)
