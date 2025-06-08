@@ -1,7 +1,4 @@
-| Supported Targets | ESP32 | ESP32-P4 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- |
-
-# SD Card Changer for ESP32
+# SD Card Changer for ESP32-S3
 
 This project implements a **multi-slot SD card changer** interface using the ESP32-S3 dev kit, allowing dynamic software-based switching between up to 8 SD cards without physically reconnecting them. It utilizes an I2C-controlled GPIO expander (MCP23017) for slot selection, power control, and card detection and SN74CB3Q3245 for physical bus switching.
 
@@ -64,7 +61,7 @@ Maximum bandwidth of 500 MHz could theoretically be achieved although signal int
 
 ### Data Structures
 
-- `sdchngr_handle_t`: Handle for the SD changer device. Tracks:
+- `esp_sdchngr_handle_t`: Handle for the SD changer device. Tracks:
   - Currently selected slot
   - Detected cards (bitmask)
   - Powered slots (bitmask)
@@ -120,71 +117,55 @@ Maximum bandwidth of 500 MHz could theoretically be achieved although signal int
 ```c
 #include "sd_changer.h"
 ```
-4. Build the project
-5. Example:
-```bash
-get_idf
-idf.py set-target esp32s3
-idf.py add-dependency "espressif/mcp23017^0.1.0"
-idf.py build
-```
+4. Build the project (see Example for more details)
 
 ## API Overview
 ### Initialization
 ```c
-esp_err_t sdchngr_init(sdchngr_handle_t handle);
+esp_err_t esp_sdchngr_init(esp_sdchngr_handle_t handle);
 ```
 
 ### Card control
 - Select SD card slot
 ```c
-esp_err_t sdchngr_set_selected(sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config);
+esp_err_t esp_sdchngr_set_selected(esp_sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config);
 ```
 Note: card is selected only if is card is physicaly detected in slot. `sdmmc_slot_config_t` is output of this function, the config should be used to access the card in selected slot.
 
 - Power SD card on/off:
 ```c
-esp_err_t sdchngr_set_power(sdchngr_handle_t handle, uint8_t slot, uint8_t power);
+esp_err_t esp_sdchngr_set_power(esp_sdchngr_handle_t handle, uint8_t slot, uint8_t power);
 ```
 Note: card is powered only if is card is physicaly detected in slot
 
 ### State Queries
 - Get selected slot:
 ```c
-uint8_t sdchngr_get_selected(sdchngr_handle_t handle);
+uint8_t esp_sdchngr_get_selected(esp_sdchngr_handle_t handle);
 ```
 Returns number of slot that is selected.
 
 - Get detected cards:
 ```c
-esp_err_t sdchngr_get_detected(sdchngr_handle_t handle, uint8_t *nDetected, uint8_t *slots);
+esp_err_t esp_sdchngr_get_detected(esp_sdchngr_handle_t handle, uint8_t *nDetected, uint8_t *slots);
 ```
 Gets number of detected cards and bitwise representation of detected cards.
 
 - Get powered cards:
 ```c
-esp_err_t sdchngr_get_powered(sdchngr_handle_t handle, uint8_t *nPowered, uint8_t *slots);
+esp_err_t esp_sdchngr_get_powered(esp_sdchngr_handle_t handle, uint8_t *nPowered, uint8_t *slots);
 ```
 Gets number of powered cards and bitwise representation of powered cards.
  
 - Check if a slot is selected / powered / detected:
 ```c
-bool sdchngr_is_selected(sdchngr_handle_t handle, uint8_t slot);
-bool sdchngr_is_powered(sdchngr_handle_t handle, uint8_t slot);
-bool sdchngr_is_detected(sdchngr_handle_t handle, uint8_t slot);
-```
-## Usage example
-```c
-sdchngr_dev_t changer = SDCHNGR_DEFAULT();
-esp_err_t err = sdchngr_init(&changer);
-err = sdchngr_set_power(changer, SLOT, 1);
-err = sdchngr_set_selected(changer, SLOT, &slot_config);
-err = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
-...
-
+bool esp_sdchngr_is_selected(esp_sdchngr_handle_t handle, uint8_t slot);
+bool esp_sdchngr_is_powered(esp_sdchngr_handle_t handle, uint8_t slot);
+bool esp_sdchngr_is_detected(esp_sdchngr_handle_t handle, uint8_t slot);
 ```
 ## Additional notes
 - Each SD slot must be individually powered and detected before being selected.
 - Physically two slots can be active at the same time but SW implementation uses only one. When selecting from slot at port A [0-3] to slot on port B [4-7], the bus switch is not deactivated on port A. API returns `sdmmc_slot_config_t` with pins to card on port B. Theoretically 2 slots can be active and be used by 2 SDMMC controllers at the same time.
 - SD card can be switched without the need for unmounting them first but it is advised to do so.
-- SD slots are physicaly on board numbered [1-8]. The SW uses numbering [0-7].
+- SD slots are physically on board numbered [1-8]. The SW uses numbering [0-7].
+- the Example code can be used as a testing application

@@ -99,19 +99,19 @@ void app_main(void)
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
 
-    sdchngr_dev_t device = SDCHNGR_DEFAULT();
-    sdchngr_handle_t changer = (sdchngr_handle_t)&device;
-    sdchngr_init(changer);
+    esp_sdchngr_dev_t device = SDCHNGR_DEFAULT();
+    esp_sdchngr_handle_t changer = (esp_sdchngr_handle_t)&device;
+    esp_sdchngr_init(changer);
     uint8_t nDetected = 0;
     uint8_t detected = 0;
-    sdchngr_get_detected(changer, &nDetected, &detected);
+    esp_sdchngr_get_detected(changer, &nDetected, &detected);
     ESP_LOGI(TAG, "Detected num %d mask %02x", nDetected, detected);
 
     for (size_t i = 0; i < 8; i++)
     {
         ESP_LOGI(TAG, "[SLOT %d]", i);
-        ret = sdchngr_set_power(changer, i, true);
-        ret = sdchngr_set_selected(changer, i, &slot_config);
+        ret = esp_sdchngr_set_power(changer, i, true);
+        ret = esp_sdchngr_set_selected(changer, i, &slot_config);
         if (ret != ESP_OK)
         {
             if (ret == ESP_ERR_NOT_FOUND)

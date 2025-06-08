@@ -36,8 +36,9 @@ static const char *TAG = "sdchngr";
 
 esp_err_t esp_sdchngr_init(esp_sdchngr_handle_t handle)
 {
-    SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
-    ESP_LOGI(TAG, "Initializing sd changer\n");
+    SDCHNGR_CHECK(handle != NULL, "Invalid arg", ESP_ERR_INVALID_ARG);
+    ESP_LOGI(TAG, "Initializing SD changer\n");
+
     // Init I2C peripherals
     i2c_config_t conf_i2c = {
         .mode = I2C_MODE_MASTER,
@@ -47,13 +48,16 @@ esp_err_t esp_sdchngr_init(esp_sdchngr_handle_t handle)
         .scl_pullup_en = false,
         .clk_flags = I2C_CLK_SRC_DEFAULT,
         .master.clk_speed = 100000};
+
     handle->i2c = i2c_bus_create(I2C_NUM_0, &conf_i2c);
 
     uint32_t speed = i2c_bus_get_current_clk_speed(handle->i2c);
     ESP_LOGI(TAG, "I2C speed %ld", speed);
-    // Init mcp23017 GPIO expander
-    // [mcp0] [A2:1][A1:1][A0:0]
-    // [mcp1] [A2:1][A1:0][A0:0]
+
+    /* Init mcp23017 GPIO expander:
+     * [mcp0] [A2:1][A1:1][A0:0]
+     * [mcp1] [A2:1][A1:0][A0:0]
+     */
     handle->mcps[0] = mcp23017_create(handle->i2c, MCP23017_I2C_ADDRESS_DEFAULT + 6);
     handle->mcps[1] = mcp23017_create(handle->i2c, MCP23017_I2C_ADDRESS_DEFAULT + 4);
 
@@ -72,46 +76,63 @@ esp_err_t esp_sdchngr_init(esp_sdchngr_handle_t handle)
 
 esp_err_t esp_sdchngr_set_selected(esp_sdchngr_handle_t handle, uint8_t slot, sdmmc_slot_config_t *slot_config)
 {
-    SDCHNGR_CHECK(handle != NULL && slot_config != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
-    if (slot >= SD_SLOT_COUNT)
-        return ESP_ERR_INVALID_ARG;
-    if (!esp_sdchngr_is_detected(handle, slot))
-        return ESP_ERR_NOT_FOUND;
+    SDCHNGR_CHECK(handle != NULL && slot_config != NULL, "Invalid arg", ESP_ERR_INVALID_ARG);
 
-    esp_sdchngr_set_port(handle, slot, slot_config);    // Get correct slot config
-    esp_sdchngr_set_mcp(handle, slot);                  // Set correct currentMcp
-    uint8_t gpio = slot;
-    if (gpio >= 4)
-        gpio -= 4;
+    if (slot >= SD_SLOT_COUNT) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (!esp_sdchngr_is_detected(handle, slot)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // Get correct slot config
+    ESP_ERROR_CHECK(esp_sdchngr_set_port(handle, slot, slot_config));
+
+    // Set correct currentMcp
+    ESP_ERROR_CHECK(esp_sdchngr_set_mcp(handle, slot));
+
+    // Number of slots - ???
+    //uint8_t gpio = (slot >= 4) ? (slot - 4) : slot;
+
     // Outputs are on GPIOB
     uint8_t current_gpio = mcp23017_read_io(handle->curentMcp, MCP23017_GPIOB);
     current_gpio |= 0b10101010; // Apply mask - odd bits are bus select
+
     // Clear bit, stride 2, offset 1, 0 is select active
     bitclear(current_gpio, ((slot % 4) * 2 + 1));
     mcp23017_write_io(handle->curentMcp, current_gpio, MCP23017_GPIOB);
     handle->selectedSlot = slot;
 
     ESP_LOGD(TAG, "Selected %d", slot);
+
     return ESP_OK;
 }
 
-esp_err_t esp_sdchngr_set_power(esp_sdchngr_handle_t handle, uint8_t slot, uint8_t power)
+esp_err_t esp_sdchngr_set_power(esp_sdchngr_handle_t handle, uint8_t slot, bool power)
 {
-    SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
-    if (slot >= SD_SLOT_COUNT)
-        return ESP_ERR_INVALID_ARG;
-    if (!esp_sdchngr_is_detected(handle, slot))
-        return ESP_ERR_NOT_FOUND;
+    SDCHNGR_CHECK(handle != NULL, "Invalid arg", ESP_ERR_INVALID_ARG);
 
-    esp_sdchngr_set_mcp(handle, slot);  // Set corrent currentMcp
+    if (slot >= SD_SLOT_COUNT) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!esp_sdchngr_is_detected(handle, slot)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // Set corret currentMcp
+    ESP_ERROR_CHECK(esp_sdchngr_set_mcp(handle, slot));
+
     // Outputs are on GPIOB
     uint8_t current_gpio = mcp23017_read_io(handle->curentMcp, MCP23017_GPIOB);
+
     // Set/clear bit, stride 2, offset 0, 0 is power active
     power >= true ? bitclear(current_gpio, ((slot % 4) * 2)) : bitset(current_gpio, ((slot % 4) * 2));
     mcp23017_write_io(handle->curentMcp, current_gpio, MCP23017_GPIOB);
-    power >=1 ? bitset(handle->poweredSlots, slot) : bitclear(handle->poweredSlots, slot);
+    power >= 1 ? bitset(handle->poweredSlots, slot) : bitclear(handle->poweredSlots, slot);
 
     ESP_LOGD(TAG, "Power [%d] slot %d\n", power, slot);
+
     return ESP_OK;
 }
 
@@ -122,7 +143,7 @@ uint8_t esp_sdchngr_get_selected(esp_sdchngr_handle_t handle)
 
 esp_err_t esp_sdchngr_get_detected(esp_sdchngr_handle_t handle, uint8_t *nDetected, uint8_t *slots)
 {
-    SDCHNGR_CHECK(handle != NULL && nDetected != NULL && slots != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
+    SDCHNGR_CHECK(handle != NULL && nDetected != NULL && slots != NULL, "Invalid arg", ESP_ERR_INVALID_ARG);
 
     uint8_t porta = mcp23017_read_io(handle->mcps[0], MCP23017_GPIOA);
     uint8_t portb = mcp23017_read_io(handle->mcps[1], MCP23017_GPIOA);
@@ -133,12 +154,14 @@ esp_err_t esp_sdchngr_get_detected(esp_sdchngr_handle_t handle, uint8_t *nDetect
     // 0b[BBBBAAAA]
     *slots = (portb << 4) | porta;
     *slots = ~(*slots); // Negate so that 1 represents detected card
-    for (int i = 0; i < 8; ++i)
-    {
-        if (*slots & (1 << i))
+    for (int i = 0; i < 8; ++i) {
+        if (*slots & (1 << i)) {
             (*nDetected)++;
+        }
     }
+
     ESP_LOGD(TAG, "Detected: " BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(*slots));
+
     return ESP_OK;
 }
 
@@ -147,34 +170,38 @@ esp_err_t esp_sdchngr_get_powered(esp_sdchngr_handle_t handle, uint8_t *nPowered
     SDCHNGR_CHECK(handle != NULL && nPowered != NULL && slots != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
 
     slots = &handle->poweredSlots;
-    for (int i = 0; i < 8; ++i)
-    {
-        if (*slots & (1 << i))
+    for (int i = 0; i < 8; ++i) {
+        if (*slots & (1 << i)) {
             (*nPowered)++;
+        }
     }
+
     return ESP_OK;
 }
 
-uint8_t esp_sdchngr_is_selected(esp_sdchngr_handle_t handle, uint8_t slot)
+bool esp_sdchngr_is_selected(esp_sdchngr_handle_t handle, uint8_t slot)
 {
-    SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
+    //SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     return slot == handle->selectedSlot;
 }
 
-uint8_t esp_sdchngr_is_powered(esp_sdchngr_handle_t handle, uint8_t slot)
+bool esp_sdchngr_is_powered(esp_sdchngr_handle_t handle, uint8_t slot)
 {
-    SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
+    //SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     ESP_LOGD(TAG, "Powered: " BYTE_TO_BINARY_PATTERN " slot %d", BYTE_TO_BINARY(handle->poweredSlots), slot);
+
     return bitcheck(handle->poweredSlots, slot);
 }
 
-uint8_t esp_sdchngr_is_detected(esp_sdchngr_handle_t handle, uint8_t slot)
+bool esp_sdchngr_is_detected(esp_sdchngr_handle_t handle, uint8_t slot)
 {
-    SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
+    //SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
     uint8_t nDetected = 0;
     uint8_t detected = 0;
+
     esp_sdchngr_get_detected(handle, &nDetected, &detected);
     ESP_LOGD(TAG, "Slot %d detected [%d]", slot, bitcheck(detected, slot) > 0);
+
     return bitcheck(detected, slot) > 0;
 }
 
@@ -182,13 +209,11 @@ esp_err_t esp_sdchngr_set_port(esp_sdchngr_handle_t handle, uint8_t slot, sdmmc_
 {
     SDCHNGR_CHECK(handle != NULL && config != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
 
-    if (slot > SD_SLOT_COUNT)
+    if (slot > SD_SLOT_COUNT) {
         return ESP_ERR_INVALID_ARG;
-        
-    if (slot < 4)
-        *config = handle->portConfigs[0];
-    else
-        *config = handle->portConfigs[1];
+    }
+
+    *config = (slot < 4) ? handle->portConfigs[0] : handle->portConfigs[1];
 
     return ESP_OK;
 }
@@ -196,12 +221,12 @@ esp_err_t esp_sdchngr_set_port(esp_sdchngr_handle_t handle, uint8_t slot, sdmmc_
 esp_err_t esp_sdchngr_set_mcp(esp_sdchngr_handle_t handle, uint8_t slot)
 {
     SDCHNGR_CHECK(handle != NULL, "invalid arg", ESP_ERR_INVALID_ARG);
-    if (slot > 8)
+
+    if (slot > 8) {
         return ESP_ERR_INVALID_ARG;
-    if (slot < 4)
-        handle->curentMcp = handle->mcps[0];
-    else
-        handle->curentMcp = handle->mcps[1];
+    }
+
+    handle->curentMcp = (slot < 4) ? handle->mcps[0] : handle->mcps[1];
 
     return ESP_OK;
 }
